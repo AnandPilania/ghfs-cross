@@ -30,7 +30,6 @@ import logging
 import os
 import sys
 import signal
-import threading
 from typing import List, Optional
 
 from .github_client import GitHubClient, GitHubAPIError

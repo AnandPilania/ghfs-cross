@@ -70,7 +70,5 @@ jobs:
         continue-on-error: true   # macFUSE needs a system extension — CI can't approve it
       - name: Install Python deps
         run: pip install refuse pytest pytest-cov
-      - name: Install package
-        run: pip install -e .
       - name: Run tests (skip mount tests on CI)
         run: pytest tests/ -v -k "not mount" --cov=ghfs --cov-report=term-missing
