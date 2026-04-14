@@ -1,0 +1,15 @@
+Package: ghfs
+Version: 0.0.1
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: fuse3
+Maintainer: Anand Pilania <pilaniaanand@gmail.com>
+Homepage: https://github.com/anandpilania/ghfs-cross
+Description: Mount GitHub repositories as a read-only virtual filesystem
+ GHFS mounts your GitHub repositories as a virtual read-only filesystem
+ using FUSE. Browse every file across all your repos as local directories
+ with no git cloning required.
+ .
+ Supports authenticated access (private repos) via a personal access token
+ and unauthenticated access for public repos.

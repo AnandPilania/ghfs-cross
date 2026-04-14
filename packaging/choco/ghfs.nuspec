@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>ghfs</id>
+    <version>0.0.1</version>
+    <packageSourceUrl>https://github.com/anandpilania/ghfs-cross</packageSourceUrl>
+    <owners>anandpilania</owners>
+    <title>GHFS — GitHub Virtual Filesystem</title>
+    <authors>Anand Pilania</authors>
+    <projectUrl>https://github.com/anandpilania/ghfs-cross</projectUrl>
+    <licenseUrl>https://github.com/anandpilania/ghfs-cross/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+Mount your GitHub repositories as a read-only virtual filesystem on Windows.
+Browse every repository and file as if they were local directories — no cloning
+required. Powered by WinFSP.
+
+## Usage
+  $env:GITHUB_TOKEN = "ghp_your_token"
+  ghfs mount G:
+  dir G:\
+    </description>
+    <summary>Mount GitHub repositories as a virtual read-only filesystem</summary>
+    <tags>github filesystem fuse virtual mount developer</tags>
+    <dependencies>
+      <dependency id="winfsp" version="1.10" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

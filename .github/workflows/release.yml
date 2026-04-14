@@ -1,0 +1,247 @@
+name: Release
+
+# Triggers:
+#   - Pushing a version tag:  git tag v1.2.3 && git push --tags
+#   - Manual dispatch from the Actions UI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
+
+permissions:
+  contents: write   # needed to create GitHub Release and upload assets
+
+# ────────────────────────────────────────────────────────────────────────────
+# Job 1 — Run tests on all three platforms before releasing
+# ────────────────────────────────────────────────────────────────────────────
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install libfuse3 (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y fuse3 libfuse3-dev
+
+      - name: Install macFUSE (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask macfuse || true   # may fail on CI (kext approval)
+
+      - name: Install WinFSP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\winfsp.msi" -UseBasicParsing
+          Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\winfsp.msi`" /quiet ADDLOCAL=ALL" -Wait
+
+      - name: Install Python deps
+        run: |
+          pip install pytest
+          pip install refuse || true
+          pip install winfspy || true
+          pip install -e .
+
+      - name: Run tests
+        run: pytest tests/ -v -k "not mount"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2 — Build standalone binaries with PyInstaller (one per OS)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-binary:
+    name: Binary (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: ghfs-linux-x86_64
+            binary: dist/ghfs
+          - os: macos-latest
+            asset_name: ghfs-macos-x86_64
+            binary: dist/ghfs
+          - os: windows-latest
+            asset_name: ghfs-windows-x86_64.exe
+            binary: dist/ghfs.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── Platform deps ──────────────────────────────────────────────────
+      - name: Install libfuse3 (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y fuse3 libfuse3-dev
+
+      - name: Install macFUSE (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask macfuse || true
+
+      - name: Install WinFSP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\winfsp.msi" -UseBasicParsing
+          Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\winfsp.msi`" /quiet ADDLOCAL=ALL" -Wait
+
+      # ── Python deps ────────────────────────────────────────────────────
+      - name: Install build deps
+        run: |
+          pip install pyinstaller
+          pip install refuse || true
+          pip install winfspy || true
+          pip install PyYAML || true
+          pip install -e .
+
+      # ── UPX compression (Linux / Windows only — macOS codesign breaks with UPX) ──
+      - name: Install UPX (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y upx-ucl
+
+      - name: Install UPX (Windows)
+        if: runner.os == 'Windows'
+        run: choco install upx -y
+
+      # ── Build ──────────────────────────────────────────────────────────
+      - name: Build standalone binary
+        run: pyinstaller ghfs.spec
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          SRC="${{ matrix.binary }}"
+          DST="dist/${{ matrix.asset_name }}"
+          mv "$SRC" "$DST"
+          echo "Built: $DST ($(du -sh "$DST" | cut -f1))"
+
+      # macOS: ad-hoc codesign so Gatekeeper doesn't immediately block it
+      - name: Ad-hoc codesign (macOS)
+        if: runner.os == 'macOS'
+        run: codesign --sign - --force --preserve-metadata=entitlements "dist/${{ matrix.asset_name }}"
+
+      # ── Upload artifact for the release job ───────────────────────────
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3 — Build the PyPI sdist + wheel
+  # ──────────────────────────────────────────────────────────────────────────
+  build-pypi:
+    name: PyPI packages
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+      - name: Upload PyPI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-dist
+          path: dist/
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 4 — Create GitHub Release and attach all assets
+  # ──────────────────────────────────────────────────────────────────────────
+  release:
+    name: GitHub Release
+    needs: [build-binary, build-pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: List artifacts
+        run: find artifacts/ -type f | sort
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f ! -name "*.txt" | sort | xargs sha256sum > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Extract the section for this tag from CHANGELOG.md (if it exists)
+          if [ -f CHANGELOG.md ]; then
+            awk "/^## \[$TAG\]/{found=1; next} /^## \[/{found=0} found{print}" CHANGELOG.md > release_notes.md
+          fi
+          if [ ! -s release_notes.md ]; then
+            echo "Release $TAG" > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: GHFS ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # v0.0.1-beta → prerelease
+          files: |
+            artifacts/ghfs-linux-x86_64/ghfs-linux-x86_64
+            artifacts/ghfs-macos-x86_64/ghfs-macos-x86_64
+            artifacts/ghfs-windows-x86_64.exe/ghfs-windows-x86_64.exe
+            artifacts/pypi-dist/*.whl
+            artifacts/pypi-dist/*.tar.gz
+            artifacts/SHA256SUMS.txt
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 5 — Publish to PyPI (only on real version tags, not manual dispatches)
+  # ──────────────────────────────────────────────────────────────────────────
+  publish-pypi:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    environment: pypi   # requires manual approval in GitHub repo settings
+    permissions:
+      id-token: write   # OIDC trusted publishing — no API key needed
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi-dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses OIDC — no PYPI_API_TOKEN secret needed.
+        # Configure trusted publishing at: https://pypi.org/manage/account/publishing/

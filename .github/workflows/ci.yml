@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff mypy
+      - run: ruff check ghfs/
+      - run: mypy ghfs/ --ignore-missing-imports
+
+  test-linux:
+    name: Unit tests — Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system deps
+        run: sudo apt-get install -y fuse3 libfuse3-dev
+      - name: Install Python deps
+        run: pip install refuse pytest pytest-cov
+      - name: Install package
+        run: pip install -e .
+      - name: Run tests
+        run: pytest tests/ -v --cov=ghfs --cov-report=term-missing
+
+  test-windows:
+    name: Unit tests — Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install WinFSP
+        shell: pwsh
+        run: |
+          $url = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\winfsp.msi" -UseBasicParsing
+          Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\winfsp.msi`" /quiet ADDLOCAL=ALL" -Wait
+      - name: Install Python deps
+        run: pip install winfspy pytest pytest-cov
+      - name: Install package
+        run: pip install -e .
+      - name: Run tests
+        run: pytest tests/ -v --cov=ghfs --cov-report=term-missing
+
+  test-macos:
+    name: Unit tests — macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install macFUSE
+        run: brew install --cask macfuse
+        continue-on-error: true   # macFUSE needs a system extension — CI can't approve it
+      - name: Install Python deps
+        run: pip install refuse pytest pytest-cov
+      - name: Install package
+        run: pip install -e .
+      - name: Run tests (skip mount tests on CI)
+        run: pytest tests/ -v -k "not mount" --cov=ghfs --cov-report=term-missing

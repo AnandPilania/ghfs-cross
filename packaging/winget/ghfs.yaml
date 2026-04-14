@@ -1,0 +1,42 @@
+# Windows Package Manager (winget) manifest.
+#
+# Submit to: https://github.com/microsoft/winget-pkgs
+# Path: manifests/y/anandpilania/ghfs/0.0.1/
+
+PackageIdentifier: anandpilania.ghfs
+PackageVersion: 0.0.1
+PackageName: GHFS
+Publisher: Anand Pilania
+PublisherUrl: https://github.com/anandpilania/ghfs-cross
+License: MIT
+LicenseUrl: https://github.com/anandpilania/ghfs-cross/blob/main/LICENSE
+ShortDescription: Mount GitHub repositories as a read-only virtual filesystem
+Description: |-
+  GHFS mounts your GitHub repositories as a virtual read-only filesystem on
+  Windows using WinFSP. Browse every file across all your repos as if they
+  were local directories — with no git cloning required.
+
+  Supports authenticated access (private repos) and unauthenticated access
+  (public repos). Files are fetched on demand from the GitHub API and cached.
+
+Tags:
+  - github
+  - filesystem
+  - developer
+  - cli
+  - winfsp
+
+Installers:
+  - Architecture: x64
+    InstallerType: portable
+    InstallerUrl: https://github.com/anandpilania/ghfs-cross/releases/download/v0.0.1/ghfs-windows-x86_64.exe
+    InstallerSha256: REPLACE_WITH_ACTUAL_SHA256
+    Commands:
+      - ghfs
+    Dependencies:
+      PackageDependencies:
+        - PackageIdentifier: WinFsp.WinFsp
+          MinimumVersion: "2.0"
+
+ManifestType: singleton
+ManifestVersion: 1.6.0

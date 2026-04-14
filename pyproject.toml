@@ -1,0 +1,54 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "ghfs"
+version     = "0.0.1"
+description = "Mount GitHub repositories as a virtual read-only filesystem (cross-platform)"
+readme      = "README.md"
+license     = { text = "MIT" }
+requires-python = ">=3.9"
+
+# Core dependencies — zero platform-specific libs needed at install time.
+# Platform adapters (FUSE / WinFSP) are listed as optional extras below.
+dependencies = []
+
+[project.optional-dependencies]
+# Linux / macOS FUSE support (choose one)
+fuse   = ["refuse>=0.1.0"]          # preferred: cross-platform fusepy fork
+fuse-legacy = ["fusepy>=3.0.0"]     # alternative if refuse is unavailable
+
+# Windows WinFSP support
+windows = ["winfspy>=0.8.0"]
+
+# Disk cache extras
+disk-cache = []                     # stdlib pickle only — no extra deps
+
+# gh CLI token auto-discovery
+gh-config = ["PyYAML>=6.0"]
+
+# Everything
+all = ["refuse>=0.1.0", "PyYAML>=6.0"]
+
+[project.scripts]
+ghfs = "ghfs.cli:main"
+
+[project.urls]
+Homepage   = "https://github.com/anandpilania/ghfs-cross"
+Repository = "https://github.com/anandpilania/ghfs-cross"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true

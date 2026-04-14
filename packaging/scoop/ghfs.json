@@ -1,0 +1,45 @@
+{
+    "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+    "version": "0.0.1",
+    "description": "Mount GitHub repositories as a read-only virtual filesystem",
+    "homepage": "https://github.com/anandpilania/ghfs-cross",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/anandpilania/ghfs-cross/releases/download/v0.0.1/ghfs-windows-x86_64.exe",
+            "hash": "REPLACE_WITH_ACTUAL_SHA256"
+        }
+    },
+    "pre_install": [
+        "# Check WinFSP is installed",
+        "if (!(Test-Path 'HKLM:\\SOFTWARE\\WOW6432Node\\WinFsp')) {",
+        "  Write-Warning 'WinFSP is required. Installing via Scoop...'",
+        "  scoop bucket add extras",
+        "  scoop install winfsp",
+        "}"
+    ],
+    "bin": [
+        [
+            "ghfs-windows-x86_64.exe",
+            "ghfs"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/anandpilania/ghfs-cross"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/anandpilania/ghfs-cross/releases/download/v$version/ghfs-windows-x86_64.exe"
+            }
+        }
+    },
+    "notes": [
+        "WinFSP must be installed for GHFS to work.",
+        "Install it with: scoop install winfsp",
+        "",
+        "Set your GitHub token before mounting:",
+        "  $env:GITHUB_TOKEN = 'ghp_your_token_here'",
+        "  ghfs mount G:"
+    ]
+}
